@@ -1,0 +1,147 @@
+import streamlit as st
+import plotly.graph_objects as go
+import numpy as np
+from sklearn.linear_model import LinearRegression
+import hashlib
+
+# Function to hash passwords
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# Sample user data (username: password)
+USER_DATA = {
+    "almas_shaikh": hash_password("1105"),
+    "nuzhat_shaikh": hash_password("860")
+}
+
+# Function to check user credentials
+def check_login(username, password):
+    if username in USER_DATA and USER_DATA[username] == hash_password(password):
+        return True
+    return False
+
+# Login functionality
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
+
+if not st.session_state['logged_in']:
+    st.title("Login Page")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type='password')
+    
+    if st.button("Login"):
+        if check_login(username, password):
+            st.session_state['logged_in'] = True
+            st.success("Logged in successfully!")
+        else:
+            st.error("Invalid username or password.")
+else:
+    # Existing code for the Carbon Footprint Calculator
+    st.set_page_config(layout="wide", page_title="Carbon Footprint Calculator")
+    st.title("Carbon Footprint Calculator")
+
+    # Define emission factors
+    EMISSION_FACTORS = {
+        "India": {
+            "Transportation": 0.14, # kg CO2/km
+            "Electricity": 0.82, # kg CO2/kWh
+            "Diet": 1.25, # kg CO2/meal
+            "Waste": 0.12 # kg CO2/kg
+        },
+    }
+
+    # Model training and functions
+    model = LinearRegression()
+    X_train = np.array([[10, 200, 3, 10], [20, 300, 4, 20]])
+    y_train = np.array([2.5, 3.5])
+    model.fit(X_train, y_train)
+
+    def predict_future_emissions(distance, electricity, meals, waste):
+        features = np.array([[distance, electricity, meals, waste]])
+        prediction = model.predict(features)
+        return prediction[0]
+
+    def get_recommendations(transportation, electricity, diet, waste):
+        recommendations = []
+        if transportation > 5:
+            recommendations.append("Consider using public transport, carpooling, or biking instead of driving.")
+        if electricity > 600:
+            recommendations.append("Reduce electricity consumption by switching to energy-efficient appliances and using LED lighting.")
+        if diet > 500:
+            recommendations.append("Consider reducing meat consumption and opting for more plant-based meals.")
+        if waste > 150:
+            recommendations.append("Improve waste management by recycling more and composting organic waste.")
+        if not recommendations:
+            recommendations.append("Your carbon footprint is within a reasonable range. Continue to maintain sustainable practices.")
+        return recommendations
+
+    # User inputs and calculations
+    st.subheader("🌎 Your country")
+    country = st.selectbox("Select", list(EMISSION_FACTORS.keys()))
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("🚗 Daily commute distance (in km)")
+        distance = st.slider("Distance", 0.0, 100.0, 10.0)
+
+        st.subheader("💡 Monthly electricity consumption (in kWh)")
+        electricity = st.slider("Electricity", 0.0, 1000.0, 200.0)
+
+    with col2:
+        st.subheader("🗑 Waste generated per week (in kg)")
+        waste = st.slider("Waste", 0.0, 100.0, 10.0)
+
+        st.subheader("🥘 Number of meals per day")
+        meals = st.number_input("Meals", 0, 50, 3)
+
+    # Normalize and calculate emissions
+    distance_yearly = distance * 365
+    electricity_yearly = electricity * 12
+    waste_yearly = waste * 52
+    meals_yearly = meals * 365
+
+    transportation_emissions = EMISSION_FACTORS[country]['Transportation'] * distance_yearly
+    electricity_emissions = EMISSION_FACTORS[country]['Electricity'] * electricity_yearly
+    diet_emissions = EMISSION_FACTORS[country]['Diet'] * meals_yearly
+    waste_emissions = EMISSION_FACTORS[country]['Waste'] * waste_yearly
+
+    total_emissions = round(
+        (transportation_emissions + electricity_emissions + diet_emissions + waste_emissions) / 1000, 2
+    )
+
+    if st.button("Calculate CO2 Emissions"):
+        # Display result
+        st.header("Results")
+        col3, col4 = st.columns(2)
+        with col3:
+            st.subheader("Carbon Emissions by Categories")
+            st.info(f"🚗 Transportation: {round(transportation_emissions / 1000, 2)} tonnes CO2 per year")
+            st.info(f"💡 Electricity: {round(electricity_emissions / 1000, 2)} tonnes CO2 per year")
+            st.info(f"🗑 Waste: {round(waste_emissions / 1000, 2)} tonnes CO2 per year")
+            st.info(f"🥘 Diet: {round(diet_emissions / 1000, 2)} tonnes CO2 per year")
+
+        with col4:
+            st.subheader("Total Carbon Footprint")
+            st.info(f"🌎 Your total carbon footprint is: {total_emissions} tonnes CO2 per year")
+            st.warning(
+                "In 2021, CO2 emissions per capita for India was 1.9 tons of CO2 per capita."
+            )
+
+        # Future emissions prediction and recommendations
+        future_emissions = predict_future_emissions(distance_yearly, electricity_yearly, meals_yearly, waste_yearly)
+        st.header("Future Emissions Prediction")
+        st.info(f"🌍 Your predicted future carbon footprint is: {round(future_emissions, 2)} tonnes CO2 per year")
+        st.header("Recommendations")
+        recommendations = get_recommendations(transportation_emissions, electricity_emissions, diet_emissions, waste_emissions)
+        for rec in recommendations:
+            st.write(f"- {rec}")
+
+        # Carbon emissions trends visualization
+        st.header("Carbon Emissions Trends")
+        categories = ['Transportation', 'Electricity', 'Diet', 'Waste']
+        emissions = [transportation_emissions / 1000, electricity_emissions / 1000, diet_emissions / 1000, waste_emissions / 1000]
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=categories, y=emissions, marker=dict(color=['blue', 'green', 'red', 'orange'])))
+        fig.update_layout(title="Carbon Emissions by Category", xaxis_title="Category", yaxis_title="Emissions (tonnes CO2 per year)", template="plotly_white")
+        st.plotly_chart(fig)
